@@ -8,6 +8,57 @@ enum Field {
     Apple(String),
     Wall(String),
 }
+#[derive(Clone, Copy)]
+enum Move {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+fn convert_input_to_move_enum(input: String) -> Option<Move> {
+    match input.trim() {
+        "w" => Some(Move::Up),
+        "s" => Some(Move::Down),
+        "a" => Some(Move::Left),
+        "d" => Some(Move::Right),
+        _ => None,
+    }
+}
+
+fn handle_move(mv: Move, player_position: &mut i32) -> bool {
+    match mv {
+        Move::Up => {
+            if (*player_position - 12) > 12 {
+                println!("You moved up!");
+                *player_position -= 12;
+                return true;
+            }
+        }
+        Move::Down => {
+            if *player_position + 12 < 132 {
+                println!("You moved down!");
+                *player_position += 12;
+                return true;
+            }
+        }
+        Move::Left => {
+            if (*player_position - 1) % 12 > 1 {
+                println!("You moved left!");
+                *player_position -= 1;
+                return true;
+            }
+        }
+        Move::Right => {
+            if (*player_position + 1) % 12 != 0 {
+                println!("You moved right!");
+                *player_position += 1;
+                return true;
+            }
+        }
+    }
+    false
+}
 
 impl Field {
     fn empty() -> Self {
@@ -90,49 +141,17 @@ fn main() {
                 .read_line(&mut player_move)
                 .expect("Failed to read line");
 
-            match player_move.trim() {
-                "w" => {
-                    if (player_position - 12) > 12 {
-                        println!("You moved up!");
-                        player_position -= 12;
+            match convert_input_to_move_enum(player_move) {
+                Some(mv) => {
+                    if handle_move(mv, &mut player_position) {
+                        break;
                     }
-                    break;
                 }
-                "s" => {
-                    if player_position + 12 < 132 {
-                        println!("You moved down!");
-                        player_position += 12;
-                    }
-                    break;
-                }
-                "a" => {
-                    if (player_position - 1) % 12 > 1 {
-                        println!("You moved left!");
-                        player_position -= 1;
-                    }
-                    break;
-                }
-                "d" => {
-                    if (player_position + 1) % 12 != 0 {
-                        println!("You moved right!");
-                        player_position += 1;
-                    }
-                    break;
-                }
-                _ => {
+                None => {
                     println!("To move, use WSAD!");
-                    break;
                 }
             }
         }
-
-        let row_index = (player_position - 1) / 12;
-        let col_index = (player_position - 1) % 12;
-        println!("\nRow index: {}, Column index: {}", row_index, col_index);
-        println!(
-            "Field at this position: {:?}\n",
-            board[row_index][col_index]
-        );
 
         // Remove the apple if the player moved onto it
         if apples_positions.remove(&player_position) {
