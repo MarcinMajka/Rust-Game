@@ -1,13 +1,38 @@
 use rand::Rng;
-use std::collections::HashSet;
-use std::io;
+use std::{io, usize};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Field {
-    Empty(String),
-    Apple(String),
-    Wall(String),
+    Empty,
+    Apple,
+    Wall,
+    Player,
 }
+
+impl Field {
+    fn to_string(&self) -> String {
+        match self {
+            Field::Empty => ". ",
+            Field::Apple => "* ",
+            Field::Wall => "# ",
+            Field::Player => "@ ",
+        }
+        .to_string()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Loc {
+    row: usize,
+    col: usize,
+}
+
+struct Board {
+    field: Vec<Vec<Field>>,
+    player_position: Loc,
+    apples_positions: Vec<Loc>,
+}
+
 #[derive(Clone, Copy)]
 enum Move {
     Up,
@@ -26,33 +51,33 @@ fn convert_input_to_move_enum(input: String) -> Option<Move> {
     }
 }
 
-fn handle_move(mv: Move, player_position: &mut i32) -> bool {
+fn handle_move(mv: Move, player_position: &mut Loc) -> bool {
     match mv {
         Move::Up => {
-            if (*player_position - 12) > 12 {
+            if player_position.row > 1 {
                 println!("You moved up!");
-                *player_position -= 12;
+                player_position.row -= 1;
                 return true;
             }
         }
         Move::Down => {
-            if *player_position + 12 < 132 {
+            if player_position.row < 10 {
                 println!("You moved down!");
-                *player_position += 12;
+                player_position.row += 1;
                 return true;
             }
         }
         Move::Left => {
-            if (*player_position - 1) % 12 > 1 {
+            if player_position.col > 1 {
                 println!("You moved left!");
-                *player_position -= 1;
+                player_position.col -= 1;
                 return true;
             }
         }
         Move::Right => {
-            if (*player_position + 1) % 12 != 0 {
+            if player_position.col < 10 {
                 println!("You moved right!");
-                *player_position += 1;
+                player_position.col += 1;
                 return true;
             }
         }
@@ -60,90 +85,77 @@ fn handle_move(mv: Move, player_position: &mut i32) -> bool {
     false
 }
 
-impl Field {
-    fn empty() -> Self {
-        Field::Empty(String::from(". "))
-    }
-    fn apple() -> Self {
-        Field::Apple(String::from("* "))
-    }
-    fn wall() -> Self {
-        Field::Wall(String::from("# "))
-    }
-}
-
 fn main() {
-    let mut board: Vec<Vec<Field>> = vec![vec![Field::Empty(String::from(". ")); 12]; 12];
+    // Initializing the board with empty fields
+    // + player's position outside of the board, for changing later
+    let mut board = Board {
+        field: vec![vec![Field::Empty; 12]; 12],
+        player_position: Loc { row: 0, col: 0 },
+        apples_positions: vec![],
+    };
 
     let mut rng = rand::thread_rng();
-    let ranges_for_board = [
-        14..=23,
-        26..=35,
-        38..=47,
-        50..=59,
-        62..=71,
-        74..=83,
-        86..=95,
-        98..=107,
-        110..=119,
-        124..=131,
-    ];
-    let mut apples_positions = HashSet::new();
-    // Filling the apples positions HashSet
-    while apples_positions.len() < 10 {
-        let selected_range_index = rng.gen_range(0..ranges_for_board.len());
-        let selected_range = &ranges_for_board[selected_range_index];
-        apples_positions.insert(rng.gen_range(selected_range.clone()));
+    // Filling the apples positions randomly
+    while board.apples_positions.len() < 10 {
+        let row = rng.gen_range(1..10);
+        let col = rng.gen_range(1..10);
+        let apple_loc = Loc { row, col };
+        // Making sure the apple doesn't land on another apple and is not out of the board
+        let valid_place_for_apple = !board.apples_positions.contains(&apple_loc)
+            && apple_loc.row != 0
+            && apple_loc.row != 11
+            && apple_loc.col != 0
+            && apple_loc.col != 11;
+        if valid_place_for_apple {
+            board.apples_positions.push(apple_loc);
+        }
     }
     // Generating a player_position, which is not already taken by an apple
-    let selected_range_index = rng.gen_range(0..ranges_for_board.len());
-    let selected_range = &ranges_for_board[selected_range_index];
-    let mut player_position = rng.gen_range(selected_range.clone());
-
-    let mut apples_left = apples_positions.len();
+    loop {
+        board.player_position = Loc {
+            row: rng.gen_range(1..=10),
+            col: rng.gen_range(1..=10),
+        };
+        if !board.apples_positions.contains(&board.player_position) {
+            break;
+        }
+    }
 
     loop {
-        // Variable for tracking elements position on the board
-        let mut position_counter = 0;
+        // Updating the board's state based on the player's position and apple positions
         for i in 0..12 {
             for j in 0..12 {
-                position_counter += 1;
-                if i == 0 || i == 11 || j == 0 || j == 11 {
-                    board[i][j] = Field::wall();
-                } else if position_counter == player_position {
-                    board[i][j] = Field::Empty(String::from("@"))
-                } else if apples_positions.contains(&position_counter) {
-                    board[i][j] = Field::apple();
+                let current_loc = Loc { row: i, col: j };
+                if board.player_position == current_loc {
+                    board.field[i][j] = Field::Player;
+                } else if i == 0 || i == 11 || j == 0 || j == 11 {
+                    board.field[i][j] = Field::Wall;
+                } else if board.apples_positions.contains(&current_loc) {
+                    board.field[i][j] = Field::Apple;
                 } else {
-                    board[i][j] = Field::empty();
+                    board.field[i][j] = Field::Empty;
                 }
             }
         }
 
-        // Print the board for debugging
-        for row in &board {
+        // Printing the board
+        for row in &board.field {
             for cell in row {
-                match cell {
-                    Field::Empty(contents) => print!("{:<2}", contents),
-                    Field::Apple(contents) => print!("{:<2}", contents),
-                    Field::Wall(contents) => print!("{:<2}", contents),
-                }
+                print!("{}", cell.to_string());
             }
             println!();
         }
 
-        // board[player_position / 12][player_position % 12] != Field::Wall(String::from("# "))
-
         loop {
             let mut player_move: String = String::new();
-
+            // Getting user's move
             io::stdin()
                 .read_line(&mut player_move)
                 .expect("Failed to read line");
 
             match convert_input_to_move_enum(player_move) {
                 Some(mv) => {
-                    if handle_move(mv, &mut player_position) {
+                    if handle_move(mv, &mut board.player_position) {
                         break;
                     }
                 }
@@ -152,14 +164,20 @@ fn main() {
                 }
             }
         }
-
         // Remove the apple if the player moved onto it
-        if apples_positions.remove(&player_position) {
-            apples_left -= 1;
+        if let Some(index) = board
+            .apples_positions
+            // Creates an iterator fo apples_positions
+            .iter()
+            // Searches for the position of an element in the iterator
+            // Closure takes &Loc and dereferences it, to compare its value to player_position
+            .position(|loc| *loc == board.player_position)
+        {
+            board.apples_positions.remove(index);
             println!("You ate an apple!");
         }
 
-        if apples_left == 0 {
+        if board.apples_positions.is_empty() {
             println!("\nY O U  W O N !    Y O U  W O N !    Y O U  W O N !    Y O U  W O N !    Y O U  W O N !\n");
             main();
         }
